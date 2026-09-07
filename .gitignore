@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+
+# Android
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+.idea/
+captures/

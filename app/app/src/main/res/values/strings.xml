@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Manos Libres</string>
+
+    <string name="canal_avisos">Avisos del agente</string>
+    <string name="canal_avisos_desc">Cuando el agente termina algo o quiere decirte algo.</string>
+    <string name="canal_decisiones">Decisiones</string>
+    <string name="canal_decisiones_desc">Cuando el agente está bloqueado esperando que decidas.</string>
+    <string name="canal_sesion">Sesión activa</string>
+    <string name="canal_sesion_desc">El aviso permanente mientras hay una sesión conectada.</string>
+
+    <string name="sesion_activa">Sesión activa</string>
+    <string name="sesion_conectando">Conectando con el nodo…</string>
+    <string name="sesion_sin_red">Sin conexión; reintentando</string>
+
+    <!-- Textos que se pronuncian: sin abreviaturas ni signos raros. -->
+    <string name="voz_pausa">Pausa.</string>
+    <string name="voz_reanudo">Sigo.</string>
+    <string name="voz_fin_mensaje">Fin del mensaje.</string>
+    <string name="voz_sin_mas">No hay nada más por ahora.</string>
+    <string name="voz_resuelta_en_otro">Esa decisión se contestó en otro dispositivo.</string>
+</resources>
