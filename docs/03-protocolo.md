@@ -1,8 +1,10 @@
 # 3. Protocolo `manos-libres/1`
 
-WebSocket sobre TLS. Un frame JSON por mensaje, sin saltos de línea internos. El campo `t`
-discrimina el tipo. Los tipos ejecutables viven en
-[`server/src/protocol.ts`](../server/src/protocol.ts) y son la fuente de verdad; este
+HTTP/3 con TLS 1.3, cayendo a HTTP/2 sobre TCP donde UDP no pasa
+([D1](02-arquitectura.md#d1--el-transporte-es-http3-terminado-por-caddy)). Los frames
+del nodo bajan por un `GET` en SSE; lo que manda la app son `POST` sueltos. Un frame JSON por
+evento, sin saltos de línea internos. El campo `t` discrimina el tipo. Los tipos ejecutables viven en
+[`server/protocolo.go`](../server/protocolo.go) y son la fuente de verdad; este
 documento explica el *porqué* de cada frame.
 
 ## Reglas generales
@@ -11,7 +13,9 @@ documento explica el *porqué* de cada frame.
   creciente por sesión que empieza en 1. Los frames de conexión (`hello`, `pong`, `error`
   sin sesión) no lo llevan.
 - **El nodo conserva los últimos `REPLAY_BUFFER` frames de cada sesión** (por defecto 500).
-  Reconectar con `session.attach {sinceSeq}` reenvía todo lo posterior, en orden. Si
+  Reconectar reenvía todo lo posterior, en orden — y no hace falta pedirlo: el `seq` viaja
+  como `id:` del evento SSE, así que el cliente devuelve el último visto en `Last-Event-ID`
+  sin llevar la cuenta por su cuenta. Si
   `sinceSeq` es más viejo que el buffer, el nodo responde con un `message` de resumen y
   `seq` actual, y marca el hueco.
 - **Los tamaños se controlan en el nodo.** `text` de un `message` se recorta a 16 KiB; el
@@ -35,7 +39,7 @@ documento explica el *porqué* de cada frame.
 | `ping` | — | Latido; el cliente lo manda cada 20 s. |
 
 `narration` no es telemetría decorativa: es lo que permite que, tras reconectar o tras un
-push, el nodo sepa qué ha oído ya el usuario y qué debe volver a narrar.
+reconectar, el nodo sepa qué ha oído ya el usuario y qué debe volver a narrar.
 
 ## Nodo → app
 
@@ -127,13 +131,14 @@ Cuatro patrones, y solo cuatro, para que sean distinguibles en el bolsillo: `cor
 pasó), `doble` (tarea terminada), `largo` (necesito que decidas), `urgente` (algo va mal).
 El mapeo a milisegundos es del cliente, no del protocolo.
 
-Cuando la app no está conectada, un `alert` o un `task.done` se convierte en push
-(ver [04-ux-manos-libres.md](04-ux-manos-libres.md#cuando-la-app-está-cerrada)).
+Si la app no está conectada no hay a quién avisar: el frame queda en el buffer de replay y
+se entrega al reconectar, con la háptica correspondiente
+(ver [04-ux-manos-libres.md](04-ux-manos-libres.md#cuando-la-app-está-en-segundo-plano)).
 
 ## Reconexión, paso a paso
 
 ```
-1. La app pierde el WS. El narrador sigue leyendo lo que tiene en cola.
+1. La app pierde el canal. El narrador sigue leyendo lo que tiene en cola.
 2. Reintento con retroceso exponencial (1s, 2s, 4s… tope 30s) mientras haya red.
 3. auth → hello.
 4. session.attach {sessionId, sinceSeq: <último seq visto>}.

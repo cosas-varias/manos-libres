@@ -1,0 +1,34 @@
+# La app habla HTTP/3 (QUIC) cuando el teléfono puede, y HTTPS sobre TCP cuando no. De eso se
+# encarga Caddy y no el nodo: saca el certificado por sí mismo y habla h3 en el 443 sin
+# configuración, que es lo único que hace que el camino QUIC de la app se use de verdad. El
+# nodo se queda hablando HTTP en claro dentro de la red de compose.
+#
+# Hace falta abrir el 443 también en UDP, ver docker-compose.yml: HTTP/3 es QUIC, y QUIC es
+# UDP. Sin ese puerto todo sigue funcionando, pero siempre por TCP y sin h3.
+#
+# Es el mismo montaje que en echo-server, y por la misma razón: el servicio en Go no habla
+# QUIC en ningún momento.
+
+{$NODO_DOMINIO} {
+	reverse_proxy nodo:8787 {
+		# **Lo que hace que el canal funcione.** El flujo descendente es una respuesta SSE
+		# que no termina nunca; con el buffering por defecto Caddy retendría los frames y la
+		# app no recibiría nada hasta que la conexión se cerrase, que es justo lo contrario
+		# de un canal siempre abierto. Caddy lo desactiva solo al ver `text/event-stream`,
+		# pero dejarlo escrito evita que un cambio de content-type lo rompa en silencio.
+		flush_interval -1
+
+		transport http {
+			dial_timeout 10s
+			# El flujo descendente vive lo que dure la sesión de trabajo: horas. Cualquier
+			# plazo de lectura aquí sería un corte periódico del canal.
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

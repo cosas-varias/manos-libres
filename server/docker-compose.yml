@@ -1,0 +1,42 @@
+services:
+  nodo:
+    build: .
+    container_name: manos-libres-nodo
+    ports:
+      # Solo local: con Caddy delante, el puerto en claro no tiene por qué salir de la
+      # máquina, y por él viaja el token del dispositivo.
+      - "127.0.0.1:${PUERTO_LOCAL:-8787}:8787"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8787
+    volumes:
+      # Las credenciales de la suscripción. Es lo que hace que se consuma la suscripción y
+      # no la API de pago: sin esto el agente no arranca. Ver docs/02-arquitectura.md.
+      - ${HOME}/.claude:/root/.claude
+      # Los proyectos sobre los que se abren sesiones. Tiene que coincidir con ALLOWED_ROOTS.
+      - ${PROYECTOS:-${HOME}/proyectos}:${PROYECTOS:-${HOME}/proyectos}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: manos-libres-caddy
+    depends_on:
+      - nodo
+    ports:
+      - "80:80"
+      - "443:443"
+      # HTTP/3 es QUIC, y QUIC es UDP: sin este puerto la app cae a HTTPS sobre TCP
+      - "443:443/udp"
+    environment:
+      - NODO_DOMINIO=${NODO_DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

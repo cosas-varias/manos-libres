@@ -13,7 +13,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
 /**
- * El canal con el nodo.
+ * El canal con el nodo. Uno solo, siempre abierto, que trae también los avisos: no hay push
+ * por un tercero (docs/07-decisiones.md §3).
  *
  * El móvil pierde la conexión constantemente: cambia de wifi a datos, se duerme, entra en
  * el metro. Así que el cliente asume que la desconexión es el estado normal y la
@@ -23,6 +24,17 @@ import kotlin.math.min
  *  · `sinceSeq` por sesión, para que el nodo reenvíe solo lo que falta;
  *  · el narrador **no se para** al perder la conexión: sigue leyendo lo que tiene en cola,
  *    que es exactamente lo que uno espera cuando le llega una notificación de nada.
+ *
+ * TODO(H2): pasar a HTTP/3, que hace desaparecer la mitad de estas reconexiones — el
+ * *connection ID* de QUIC sobrevive al cambio de wifi a datos, que es cuando más se corta.
+ * OkHttp no habla HTTP/3; el cliente es `android.net.http.HttpEngine` con
+ * `setEnableQuic(true)`, que desde Android 14 es Cronet como módulo de plataforma: sin Play
+ * Services y sin dependencia añadida. Por debajo de API 34 se cae a `HttpURLConnection` y
+ * HTTP/2 sobre TCP, que sirve igual. La app de Echo lo hace así (`TraceUploader.java`).
+ *
+ * Y el canal deja de ser un WebSocket: los frames bajan por un `GET` en SSE —el `id:` de
+ * cada evento es el `seq`, así que `Last-Event-ID` sustituye a `sinceSeq`— y lo que sube son
+ * `POST` sueltos.
  */
 class AgentClient(
     private val url: String,

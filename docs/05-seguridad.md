@@ -11,19 +11,25 @@ Todo lo que sigue existe por esa frase.
 
 ## Transporte
 
-- **WSS obligatorio.** El nodo no acepta `ws://` salvo en `127.0.0.1` para desarrollo.
-- **Terminación TLS en Caddy o nginx**, con certificado de Let's Encrypt. El nodo escucha
-  en loopback; no se expone directamente.
-- **HSTS** y **pinning del certificado en la app** (`network_security_config.xml` con el
-  pin de la CA intermedia, no de la hoja, para no romperse en cada renovación).
-- El nodo rechaza conexiones sin `Origin` esperado y limita a 4 conexiones por token.
+- **Cifrado obligatorio.** HTTP/3 lleva TLS 1.3 dentro por definición, y el repliegue es
+  HTTPS. El nodo solo escucha en claro en loopback, detrás de Caddy.
+- **Certificado de Let's Encrypt, y el nodo en loopback.** Caddy termina TLS y HTTP/3 y hace
+  de proxy en claro dentro de la red de compose; el nodo no habla QUIC ni ve un certificado.
+- **UDP/443 abierto** para HTTP/3, además del TCP/443 del repliegue. La superficie nueva la
+  atiende Caddy, no el nodo.
+- **Pinning del certificado en la app** (pin de la CA intermedia, no de la hoja, para no
+  romperse en cada renovación), y **HSTS**.
+- **El token va en `Authorization: Bearer`, nunca en la URL.** En `echo-server` viaja en la
+  URL porque Echo no deja configurar cabeceras, y el precio es que acaba en los registros de
+  acceso de Caddy. La app de manos-libres es nuestra y no paga ese precio.
+- El nodo limita a 4 conexiones por token.
 
 ## Emparejamiento
 
 No hay contraseñas. Un dispositivo se empareja una vez:
 
 ```
-1. En el servidor:  npm run pair
+1. En el servidor:  go run . pair
    → imprime un código de un uso, válido 5 minutos, y un QR con
      {url, code}
 2. En la app: escanear el QR (o teclear url + código).
@@ -38,7 +44,7 @@ A partir de ahí, cada `auth` incluye el token **y** una firma del reto que env�
 el `hello` previo. El token solo no sirve: hace falta la clave privada, que no sale del
 Keystore. Un token robado del almacenamiento de la app es inútil sin acceso al hardware.
 
-- Los tokens se listan y revocan con `npm run devices`. La revocación es inmediata: el nodo
+- Los tokens se listan y revocan con `go run . devices`. La revocación es inmediata: el nodo
   cierra las conexiones activas de ese token.
 - Los tokens no caducan por tiempo. Caducan por revocación explícita, porque un token que
   caduca a media madrugada deja tu agente sin supervisión sin avisar.
@@ -53,9 +59,16 @@ El nodo, no la app, decide qué puede hacer el agente:
   de las raíces de `ALLOWED_ROOTS`. Nada de abrir sesiones en `/` o en `~/.ssh`.
 - **Herramientas denegadas por defecto** las que no tienen sentido en remoto y sí tienen
   consecuencias fuera del repo: se configura con `disallowedTools` en el arranque.
-- **El agente no ve el token del dispositivo, ni la configuración del nodo, ni los tokens de
-  push.** Viven fuera del `cwd` de cualquier sesión y en variables de entorno que no se
-  propagan al proceso del agente.
+- **`ALLOWED_ROOTS` no cubre lo que el repo trae dentro.** El nodo ejecuta el CLI sin
+  `--bare`, porque en modo bare no lee las credenciales OAuth y dejaría de usar la
+  suscripción. El precio es que la sesión carga el `CLAUDE.md`, las skills, los servidores
+  MCP y **los hooks** del directorio de trabajo, y un hook es un comando que se ejecuta solo.
+  Que el `cwd` esté bajo una raíz permitida no dice nada de quién escribió su
+  `.claude/settings.json`. Es la razón de peso para contenerizar el agente en H6; hasta
+  entonces, abrir una sesión en un repo es confiar en ese repo.
+- **El agente no ve el token del dispositivo ni la configuración del nodo.** Viven fuera del
+  `cwd` de cualquier sesión y en variables de entorno que no se propagan al proceso del
+  agente.
 - **La herramienta `avisar` no acepta texto arbitrario largo.** `mensaje` se recorta a 120
   caracteres y se escapa; es lo que acaba en una notificación del sistema.
 
@@ -66,13 +79,13 @@ El nodo, no la app, decide qué puede hacer el agente:
 - **El buffer de replay es en memoria y en anillo.** Se pierde al reiniciar, a propósito.
 - **La app guarda en disco lo mínimo:** la lista de sesiones y la última posición de
   narración. La transcripción es efímera en memoria. Ver
-  [decisión abierta](07-decisiones-abiertas.md#7-histórico-en-el-móvil).
+  [decisión](07-decisiones.md#7--histórico-en-el-móvil-no-en-la-v1).
 - **El contenido del trabajo no pasa por terceros.** Es el argumento principal para usar el
   TTS del dispositivo ([D5](02-arquitectura.md#d5--el-motor-de-voz-es-el-tts-del-sistema-en-el-dispositivo)):
   un TTS en la nube significa mandar cada frase de tu código a un proveedor más.
-- **El push sí pasa por un tercero.** Por eso los push son *data-only* y su contenido es un
-  identificador y un patrón, nunca el texto del agente. El texto se recupera por el
-  WebSocket cuando la app despierta.
+- **Nada pasa por un tercero.** No hay proveedor de push: el aviso viaja por la misma
+  conexión QUIC que el resto del protocolo, entre tu móvil y tu servidor y nadie más
+  ([07 §3](07-decisiones.md#3--canal-de-despertar-quic-sin-terceros)).
 
 ## Límites de tasa y abuso
 
@@ -92,7 +105,7 @@ personales.** Poner el nodo a disposición de varias personas, aunque sea tu equ
 uso que probablemente incumple sus condiciones — y en la práctica se detecta. Este diseño
 asume **un nodo por persona, con varios dispositivos propios emparejados**. Si hace falta
 multiusuario, la vía es API de pago con clave propia, no compartir la suscripción. Está en
-[decisiones abiertas](07-decisiones-abiertas.md#2-un-usuario-o-varios).
+[decisiones](07-decisiones.md#2--un-usuario-por-nodo).
 
 ## Fuera de alcance de la v1
 

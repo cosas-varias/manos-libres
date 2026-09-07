@@ -18,9 +18,13 @@ import org.cosasvarias.manoslibres.speech.Narrator
  * El corazón de la app en ejecución.
  *
  * Es un foreground service y no un `ViewModel` porque tiene que sobrevivir a que la app no
- * esté en pantalla: el WebSocket, la narración y los avisos siguen mientras el móvil está
- * bloqueado en el bolsillo. Se declara como `mediaPlayback` porque narrar *es* reproducir
+ * esté en pantalla: el canal con el nodo, la narración y los avisos siguen mientras el móvil
+ * está bloqueado en el bolsillo. Se declara como `mediaPlayback` porque narrar *es* reproducir
  * audio, y así el sistema lo respeta en vez de matarlo por inactividad.
+ *
+ * Que este servicio siga vivo es **la única garantía de entrega que hay**: no existe push por
+ * un tercero que pueda resucitar el proceso (docs/07-decisiones.md §3). De ahí la notificación
+ * permanente, `START_STICKY` y la exención de optimización de batería que se pide al usuario.
  *
  * Reparte cada frame entrante a quien corresponde:
  *
@@ -48,7 +52,7 @@ class SessionService : LifecycleService() {
         haptics = Haptics(this)
         narrador = Narrator(this) { messageId, sentence ->
             // Decirle al nodo dónde va la voz: es lo que permite reanudar en la frase
-            // exacta tras una reconexión o un push.
+            // exacta tras una reconexión.
             sessionId?.let {
                 cliente.enviar(ClientFrame.Narration(it, ClientFrame.Narration.At(messageId, sentence)))
             }

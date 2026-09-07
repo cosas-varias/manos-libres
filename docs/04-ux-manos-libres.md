@@ -52,20 +52,24 @@ En Android 12+ se usan `VibrationEffect.Composition` con primitivas (`CLICK`, `T
 `TICK`) donde estén disponibles, cayendo a `createWaveform` en el resto. Los tres patrones
 informativos respetan el modo No Molestar; `urgente` no.
 
-### Cuando la app está cerrada
+### Cuando la app está en segundo plano
 
-El WebSocket solo existe mientras la app corre. Con un *foreground service* activo
-(la sesión de trabajo), el canal se mantiene con el móvil bloqueado y la app en segundo
-plano. Pero si el sistema mata el proceso o el usuario cierra la app, hace falta un push.
+El canal solo existe mientras el proceso corre. Con un *foreground service* activo (la
+sesión de trabajo), la conexión QUIC se mantiene con el móvil bloqueado y la app en segundo
+plano: un foreground service conserva acceso a red en Doze, y la migración de conexión de
+QUIC cubre el cambio de wifi a datos sin cortar nada.
 
-El nodo mantiene, por dispositivo, un token de push y una regla: si un `alert`, un
-`task.done` o un `decision.request` no se entrega por WebSocket en 2 segundos, se manda
-como push *data-only*. El `SessionService` se despierta, vibra con el patrón correcto y
-—si es una decisión— publica una notificación de alta prioridad con las opciones como
-acciones, de forma que se pueda contestar desde la pantalla de bloqueo sin abrir la app.
+Cuando llega un `alert`, un `task.done` o un `decision.request`, el `SessionService` vibra
+con el patrón correcto y —si es una decisión— publica una notificación de alta prioridad con
+las opciones como acciones, de forma que se pueda contestar desde la pantalla de bloqueo sin
+abrir la app.
 
-Qué proveedor de push usar es una [decisión abierta](07-decisiones-abiertas.md#3-canal-de-push):
-FCM funciona mejor pero ata a Google Play Services; UnifiedPush/ntfy es autoalojable.
+**No hay push por un tercero**, y eso tiene una consecuencia que conviene decir sin
+adornos: si el sistema mata el proceso, **nadie puede despertarlo** hasta que el usuario
+abra la app. Se mitiga con la notificación persistente del foreground service, pidiendo al
+usuario la exención de optimización de batería, y con `START_STICKY`; en móviles con
+matarratas agresivo hay que añadir la excepción a mano. Es una decisión tomada a sabiendas
+([07 §3](07-decisiones.md#3--canal-de-despertar-quic-sin-terceros)).
 
 ---
 
@@ -228,7 +232,7 @@ confirmación al pie. Es el caso menos frecuente y no se optimiza para ciego tot
   las opciones. Si la pantalla estaba en modo negro, se ilumina a brillo automático.
 - **Sin respuesta:** los permisos del agente **no caducan** — el agente se queda esperando
   indefinidamente. Así que no inventamos un timeout que deniegue por nosotros: la decisión
-  queda pendiente, y se reenvía por push a los 30 s y a los 5 min. Es explícitamente mejor
+  queda pendiente, y se reinsiste con el aviso a los 30 s y a los 5 min. Es explícitamente mejor
   que un agente bloqueado sea un agente bloqueado, y no un agente que hizo algo que nadie
   aprobó.
 - **Resuelta en otro sitio:** llega `decision.resolved` y la pantalla se cierra con un
@@ -243,4 +247,4 @@ confirmación al pie. Es el caso menos frecuente y no se optimiza para ciego tot
 preguntar algo en texto libre. Ahí la botonera no aplica: la app narra la pregunta y ofrece
 dictado (el reconocedor del sistema) con confirmación hablada de lo transcrito antes de
 enviarlo. Es el punto más flojo del diseño y está en
-[decisiones abiertas](07-decisiones-abiertas.md#5-entrada-por-voz).
+[decisiones](07-decisiones.md#5--entrada-por-voz-dictado-del-sistema).

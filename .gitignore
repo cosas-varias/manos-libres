@@ -12,3 +12,6 @@ local.properties
 *.aab
 .idea/
 captures/
+
+# Binario del nodo
+/server/nodo

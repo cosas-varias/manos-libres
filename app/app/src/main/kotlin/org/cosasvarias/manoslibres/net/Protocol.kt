@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 /**
  * Los frames de `manos-libres/1`.
  *
- * Réplica en Kotlin de `server/src/protocol.ts`, que es la fuente de verdad. Si cambias
+ * Réplica en Kotlin de `server/protocolo.go`, que es la fuente de verdad. Si cambias
  * uno, cambia el otro.
  *
  * `ignoreUnknownKeys` y `classDiscriminator = "t"` implementan la regla del protocolo: un
@@ -107,7 +107,7 @@ sealed interface ClientFrame {
     @Serializable @SerialName("interrupt")
     data class Interrupt(val sessionId: String) : ClientFrame
 
-    /** Dónde va la narración; permite reanudar tras un push o una reconexión. */
+    /** Dónde va la narración; permite reanudar en la frase exacta tras una reconexión. */
     @Serializable @SerialName("narration")
     data class Narration(val sessionId: String, val at: At) : ClientFrame {
         @Serializable data class At(val messageId: String, val sentence: Int)

@@ -19,38 +19,39 @@ bolsillo, unos auriculares, y como mucho un gesto grande cuando el agente pregun
 1. **El agente puede llamar tu atención.** No hay que mirar la pantalla para saber si
    terminó. El agente dispone de una herramienta para hacer vibrar el teléfono o emitir un
    sonido a propósito, y el fin de cada tarea genera un aviso automático.
-   → [docs/04-ux-manos-libres.md#1-avisos](docs/04-ux-manos-libres.md#1-avisos-el-agente-te-busca)
+   → [docs/04-ux-manos-libres.md#1-avisos](docs/04-ux-manos-libres.md#1--avisos-el-agente-te-busca)
 
 2. **Modo narración con la pantalla apagada.** El texto del agente se lee en voz alta,
    frase a frase, con control por gestos grandes o por los botones del auricular: doble
    toque retrocede una frase, mantener acelera la reproducción.
-   → [docs/04-ux-manos-libres.md#2-narración](docs/04-ux-manos-libres.md#2-narración-escuchar-en-vez-de-leer)
+   → [docs/04-ux-manos-libres.md#2-narración](docs/04-ux-manos-libres.md#2--narración-escuchar-en-vez-de-leer)
 
 3. **Decisiones a pantalla completa.** Cuando el agente pregunta cómo proceder, la pantalla
    se convierte en 2–4 franjas del tamaño de la mano, una por opción, narradas y numeradas.
    Se acierta sin mirar y sin leer.
-   → [docs/04-ux-manos-libres.md#3-decisiones](docs/04-ux-manos-libres.md#3-decisiones-la-pantalla-como-botonera)
+   → [docs/04-ux-manos-libres.md#3-decisiones](docs/04-ux-manos-libres.md#3--decisiones-la-pantalla-como-botonera)
 
 ## Cómo encaja
 
 ```
-┌─────────────────────────┐         WSS + token          ┌──────────────────────────────┐
-│  Android (Kotlin)       │◄────────────────────────────►│  nodo (Node + TypeScript)    │
+┌─────────────────────────┐   HTTP/3 (Caddy delante)     ┌──────────────────────────────┐
+│  Android (Kotlin)       │◄────────────────────────────►│  nodo (Go)                   │
 │                         │   protocolo manos-libres/1   │                              │
-│  · Narrador (TTS)       │                              │  · Hub de sesiones           │
-│  · Superficie de gestos │         FCM / UnifiedPush    │  · Segmentado en frases      │
-│  · Botonera de decisión │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│  · Adaptadores de agente     │
-│  · Háptica y avisos     │         (app cerrada)        │  · Herramienta MCP `avisar`  │
+│  · Narrador (TTS)       │   ▼ SSE, siempre abierto:    │  · Hub de sesiones           │
+│  · Superficie de gestos │     es también el canal de   │  · Segmentado en frases      │
+│  · Botonera de decisión │     aviso — sin terceros     │  · Adaptadores de agente     │
+│  · Háptica y avisos     │   ▲ POST sueltos             │  · Herramienta MCP `avisar`  │
 └─────────────────────────┘                              └──────────────┬───────────────┘
                                                                         │
                                             ┌───────────────────────────┴───────────────┐
-                                            │  Claude Code / Agent SDK  (suscripción)   │
+                                            │  Claude Code (CLI)        (suscripción)   │
                                             │  Codex CLI, otros          (fase 2)       │
                                             └───────────────────────────────────────────┘
 ```
 
 El nodo es el único que ve credenciales. La app nunca tiene una clave de proveedor: solo un
-token de dispositivo contra tu servidor.
+token de dispositivo contra tu servidor. No hay servicio de push ni ninguna otra pieza de
+terceros entre los dos extremos.
 
 **Por qué la suscripción obliga a esta forma:** una suscripción de Claude no se puede usar
 con la API de mensajes — se usa a través del binario de Claude Code, que lee las
@@ -67,14 +68,14 @@ credenciales OAuth del usuario del servidor. Por eso el nodo *envuelve un agente
 | [04-ux-manos-libres.md](docs/04-ux-manos-libres.md) | Las tres funciones en detalle, con los límites reales de Android |
 | [05-seguridad.md](docs/05-seguridad.md) | Emparejamiento, transporte, y por qué esto es ejecución remota de código |
 | [06-roadmap.md](docs/06-roadmap.md) | Hitos, del andamiaje al uso diario |
-| [07-decisiones-abiertas.md](docs/07-decisiones-abiertas.md) | Lo que falta decidir, con recomendación para cada punto |
+| [07-decisiones.md](docs/07-decisiones.md) | Las diez cuestiones que quedaban abiertas, resueltas |
 
 ## Estructura
 
 ```
-server/            nodo: hub WebSocket, sesiones, adaptadores de agente
-  src/protocol.ts  fuente de verdad del protocolo (tipos compartidos)
-  src/adapters/    claude-code.ts (Agent SDK) y el contrato que cumple cualquier motor
+server/            nodo en Go: hub de sesiones, transporte, adaptadores de agente
+  protocolo.go     fuente de verdad del protocolo (tipos compartidos)
+  claudecode.go    el CLI de Claude Code como subproceso; adaptador.go es el contrato
 app/               cliente Android (Kotlin + Compose)
 docs/              la especificación
 ```
@@ -83,7 +84,7 @@ docs/              la especificación
 
 ```bash
 # nodo
-cd server && npm install && cp .env.example .env && npm run dev
+cd server && cp .env.example .env && go run .
 
 # app
 cd app && ./gradlew installDebug     # requiere Android Studio / SDK 35
