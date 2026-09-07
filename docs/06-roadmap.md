@@ -1,5 +1,7 @@
 # 6. Roadmap
 
+La lista granular de lo que falta está en [08-tareas.md](08-tareas.md).
+
 Los hitos están ordenados por lo que hacen posible, no por lo que cuestan. Cada uno debería
 poder usarse de verdad antes de empezar el siguiente.
 
